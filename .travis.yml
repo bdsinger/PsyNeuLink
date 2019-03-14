@@ -21,8 +21,6 @@ os: linux
 
 dist: xenial
 
-env: PYTHONWARNINGS="ignore::DeprecationWarning"
-
 # Cache installed python packages
 cache:
   pip
