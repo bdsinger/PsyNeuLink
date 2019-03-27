@@ -91,20 +91,24 @@ CONTENTS
 
 """
 
+import abc
 import copy
 import inspect
 import logging
 import numbers
 import time
+import types
 import warnings
 import weakref
 
 from enum import Enum, EnumMeta, IntEnum
+from json import JSONEncoder
 
 import collections
 import numpy as np
 
 from psyneulink.core.globals.keywords import DISTANCE_METRICS, EXPONENTIAL, GAUSSIAN, LINEAR, MATRIX_KEYWORD_VALUES, NAME, SINUSOID, VALUE
+from psyneulink.core.globals.sampleiterator import SampleIterator
 
 __all__ = [
     'append_type_to_name', 'AutoNumber', 'ContentAddressableList', 'convert_to_list', 'convert_to_np_array',
@@ -119,7 +123,7 @@ __all__ = [
     'normpdf',
     'parameter_spec', 'powerset', 'random_matrix', 'ReadOnlyOrderedDict', 'safe_len', 'scalar_distance', 'sinusoid',
     'tensor_power', 'TEST_CONDTION', 'type_match',
-    'underscore_to_camelCase', 'UtilitiesError', 'unproxy_weakproxy'
+    'underscore_to_camelCase', 'UtilitiesError', 'unproxy_weakproxy', 'PNLJSONEncoder',
 ]
 
 logger = logging.getLogger(__name__)
@@ -1601,3 +1605,35 @@ def unproxy_weakproxy(proxy):
     """
     return proxy.__repr__.__self__
 
+
+class JSONDumpable:
+    @property
+    @abc.abstractmethod
+    def _dict_summary(self):
+        pass
+
+    @property
+    def json_summary(self):
+        return json.dumps(self._dict_summary, sort_keys=True, indent=4, separators=(',', ': '), cls=PNLJSONEncoder)
+
+
+class PNLJSONEncoder(JSONEncoder):
+    def default(self, o):
+        from psyneulink.core.components.component import ComponentsMeta
+
+        if isinstance(o, (np.ndarray, SampleIterator)):
+            return list(o)
+        elif isinstance(o, np.random.RandomState):
+            return 'numpy.random.RandomState()'
+        elif isinstance(o, ComponentsMeta):
+            return o.__name__
+        elif isinstance(o, (Enum, types.FunctionType)):
+            return str(o)
+        else:
+            try:
+                # convert numpy number type to python type
+                return o.item()
+            except AttributeError:
+                pass
+
+        return super().default(o)

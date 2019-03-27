@@ -953,12 +953,7 @@ from psyneulink.core.components.states.outputstate import OutputState
 from psyneulink.core.components.states.parameterstate import ParameterState
 from psyneulink.core.components.states.state import REMOVE_STATES, _parse_state_spec
 from psyneulink.core.globals.context import ContextFlags
-from psyneulink.core.globals.keywords import \
-    CURRENT_EXECUTION_COUNT, CURRENT_EXECUTION_TIME, EXECUTION_PHASE, FUNCTION, FUNCTION_PARAMS, \
-    INITIALIZING, INIT_EXECUTE_METHOD_ONLY, INIT_FUNCTION_METHOD_ONLY, \
-    INPUT_LABELS_DICT, INPUT_STATES, INPUT_STATE_VARIABLES, MONITOR_FOR_CONTROL, MONITOR_FOR_LEARNING, \
-    OUTPUT_LABELS_DICT, OUTPUT_STATES, OWNER_VALUE, PARAMETER_STATES, PREVIOUS_VALUE, REFERENCE_VALUE, \
-    TARGET_LABELS_DICT, VALUE, VARIABLE, kwMechanismComponentCategory
+from psyneulink.core.globals.keywords import CURRENT_EXECUTION_COUNT, CURRENT_EXECUTION_TIME, EXECUTION_PHASE, FUNCTION, FUNCTION_PARAMS, INITIALIZING, INIT_EXECUTE_METHOD_ONLY, INIT_FUNCTION_METHOD_ONLY, INPUT_LABELS_DICT, INPUT_STATES, INPUT_STATE_VARIABLES, MODEL_SPEC_ID_INPUT_PORTS, MODEL_SPEC_ID_OUTPUT_PORTS, MONITOR_FOR_CONTROL, MONITOR_FOR_LEARNING, OUTPUT_LABELS_DICT, OUTPUT_STATES, OWNER_VALUE, PARAMETER_STATES, PREVIOUS_VALUE, REFERENCE_VALUE, TARGET_LABELS_DICT, VALUE, VARIABLE, kwMechanismComponentCategory
 from psyneulink.core.globals.parameters import Parameter, parse_execution_context
 from psyneulink.core.globals.preferences.preferenceset import PreferenceLevel
 from psyneulink.core.globals.registry import register_category, remove_instance_from_registry
@@ -3628,6 +3623,19 @@ class Mechanism_Base(Mechanism):
             self.output_states,
             self.parameter_states,
         ))
+
+    @property
+    def _dict_summary(self):
+        inputs_dict = {MODEL_SPEC_ID_INPUT_PORTS: [s._dict_summary for s in self.input_states]}
+        inputs_dict[MODEL_SPEC_ID_INPUT_PORTS].extend([s._dict_summary for s in self.parameter_states])
+
+        outputs_dict = {MODEL_SPEC_ID_OUTPUT_PORTS: [s._dict_summary for s in self.output_states]}
+
+        return {
+            **super()._dict_summary,
+            **inputs_dict,
+            **outputs_dict
+        }
 
 
 def _is_mechanism_spec(spec):

@@ -273,10 +273,12 @@ Class Reference
 
 """
 
+import dill
+import inspect
 import logging
 
 from psyneulink.core.globals.parameters import parse_execution_context
-from psyneulink.core.globals.utilities import call_with_pruned_args
+from psyneulink.core.globals.utilities import JSONDumpable, call_with_pruned_args
 from psyneulink.core.scheduling.time import TimeScale
 
 __all__ = [
@@ -373,7 +375,7 @@ class ConditionSet(object):
             self.add_condition(owner, conditions[owner])
 
 
-class Condition(object):
+class Condition(JSONDumpable):
     """
     Used in conjunction with a `Scheduler` to specify the condition under which a `Component` should be
     allowed to execute.
@@ -447,6 +449,25 @@ class Condition(object):
         kwargs_to_pass.update({'execution_context': execution_context})
 
         return call_with_pruned_args(self.func, *(self.args + args), **kwargs_to_pass)
+
+    @property
+    def _dict_summary(self):
+        from psyneulink.core.components.component import Component
+
+        if type(self) is Condition:
+            try:
+                func_val = inspect.getsource(self.func)
+            except OSError:
+                func_val = dill.dumps(self.func)
+        else:
+            func_val = None
+
+        return {
+            'type': self.__class__.__name__,
+            'function': func_val,
+            'args': [x.name if isinstance(x, Component) else x for x in self.args],
+            'kwargs': self.kwargs,
+        }
 
 #########################################################################################################
 # Included Conditions

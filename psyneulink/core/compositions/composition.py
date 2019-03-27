@@ -696,11 +696,7 @@ from psyneulink.core.components.states.outputstate import OutputState
 from psyneulink.core.components.states.parameterstate import ParameterState
 from psyneulink.core.components.mechanisms.processing.processingmechanism import ProcessingMechanism
 from psyneulink.core.globals.context import ContextFlags
-from psyneulink.core.globals.keywords import \
-    AFTER, ALL, BEFORE, BOLD, COMPARATOR_MECHANISM, CONTROL, FUNCTIONS, HARD_CLAMP, IDENTITY_MATRIX, INPUT, LABELS, \
-    LEARNED_PROJECTION, LEARNING_MECHANISM, MATRIX_KEYWORD_VALUES, MECHANISMS, NO_CLAMP, OUTPUT, OWNER_VALUE, \
-    PROJECTIONS, PULSE_CLAMP, ROLES, SOFT_CLAMP, VALUES, NAME, SAMPLE, TARGET, TARGET_MECHANISM, VARIABLE, PROJECTIONS, \
-    WEIGHT, OUTCOME
+from psyneulink.core.globals.keywords import AFTER, ALL, BEFORE, BOLD, COMPARATOR_MECHANISM, CONTROL, FUNCTIONS, HARD_CLAMP, IDENTITY_MATRIX, INPUT, LABELS, LEARNED_PROJECTION, LEARNING_MECHANISM, MATRIX_KEYWORD_VALUES, MECHANISMS, MODEL_SPEC_ID_PSYNEULINK, MODEL_SPEC_ID_RECEIVER_MECH, MODEL_SPEC_ID_SENDER_MECH, NAME, NO_CLAMP, OUTCOME, OUTPUT, OWNER_VALUE, PROJECTIONS, PROJECTIONS, PULSE_CLAMP, ROLES, SAMPLE, SOFT_CLAMP, TARGET, TARGET_MECHANISM, VALUES, VARIABLE, WEIGHT
 from psyneulink.core.globals.log import CompositionLog, LogCondition
 from psyneulink.core.globals.parameters import Defaults, Parameter, ParametersBase
 from psyneulink.core.globals.registry import register_category
@@ -4898,26 +4894,68 @@ class Composition(Composition_Base, metaclass=ComponentsMeta):
         '''
         self._set_all_parameter_properties_recursively(history_max_length=0)
 
+    @property
     def _dict_summary(self):
         scheduler_dict = {
-            'schedulers': {
-                str(ContextFlags.PROCESSING): self.scheduler_processing._dict_summary()
-            }
+            str(ContextFlags.PROCESSING): self.scheduler_processing._dict_summary
         }
 
-        nodes_dict = {
-            'nodes': {n.name: n._dict_summary() for n in self.nodes}
-        }
+        super_summary = super()._dict_summary
 
-        projections_dict = {
-            'projections': {f'{p.sender.owner.name} to {p.receiver.owner.name}': p._dict_summary() for p in self.projections}
-        }
+        try:
+            super_summary[self._model_spec_id_parameters][MODEL_SPEC_ID_PSYNEULINK]['schedulers'] = scheduler_dict
+        except KeyError:
+            super_summary[self._model_spec_id_parameters][MODEL_SPEC_ID_PSYNEULINK] = {}
+            super_summary[self._model_spec_id_parameters][MODEL_SPEC_ID_PSYNEULINK]['schedulers'] = scheduler_dict
+
+        nodes_dict = {MODEL_SPEC_ID_PSYNEULINK: {}}
+        projections_dict = {MODEL_SPEC_ID_PSYNEULINK: {}}
+
+        additional_projections = []
+        additional_nodes = [self.controller] if self.controller is not None else []
+
+        for n in list(self.nodes) + additional_nodes:
+            if not isinstance(n, CompositionInterfaceMechanism):
+                nodes_dict[n.name] = n._dict_summary
+
+            # consider making this more general in the future
+            try:
+                additional_projections.extend(n.control_projections)
+            except AttributeError:
+                pass
+
+        for p in list(self.projections) + additional_projections:
+            cim_sender = isinstance(p.sender.owner, CompositionInterfaceMechanism)
+            cim_receiver = isinstance(p.receiver.owner, CompositionInterfaceMechanism)
+
+            # filter projections to/from CIMs, unless they are to embedded compositions
+            # (any others should be automatically generated)
+            if (
+                (not cim_sender or p.sender.owner.composition in self.nodes)
+                and (not cim_receiver or p.receiver.owner.composition in self.nodes)
+            ):
+                p_summary = p._dict_summary
+
+                if cim_sender:
+                    p_summary[MODEL_SPEC_ID_SENDER_MECH] = p.sender.owner.composition.name
+
+                if cim_receiver:
+                    p_summary[MODEL_SPEC_ID_RECEIVER_MECH] = p.receiver.owner.composition.name
+
+                projections_dict[p.name] = p_summary
+
+        if len(nodes_dict[MODEL_SPEC_ID_PSYNEULINK]) == 0:
+            del nodes_dict[MODEL_SPEC_ID_PSYNEULINK]
+
+        if len(projections_dict[MODEL_SPEC_ID_PSYNEULINK]) == 0:
+            del projections_dict[MODEL_SPEC_ID_PSYNEULINK]
 
         return {
-            **super()._dict_summary(),
-            **scheduler_dict,
-            **nodes_dict,
-            **projections_dict,
+            'graphs': [{
+                **super_summary,
+                **{'nodes': nodes_dict},
+                **{'edges': projections_dict},
+            }]
         }
 
     @property

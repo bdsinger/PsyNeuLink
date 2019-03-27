@@ -299,14 +299,15 @@ Class Reference
 
 """
 
+import collections
 import copy
 import datetime
 import logging
 import uuid
-import collections
 
 from toposort import toposort
 
+from psyneulink.core.globals.utilities import JSONDumpable
 from psyneulink.core.scheduling.condition import AllHaveRun, Always, Condition, ConditionSet, Never
 from psyneulink.core.scheduling.time import Clock, TimeScale
 
@@ -326,7 +327,7 @@ class SchedulerError(Exception):
         return repr(self.error_value)
 
 
-class Scheduler(object):
+class Scheduler(JSONDumpable):
     """Generates an order of execution for `Components <Component>` in a `Composition <Composition>` or graph
     specification dictionary, possibly determined by a set of `Conditions <Condition>`.
 
@@ -838,21 +839,18 @@ class Scheduler(object):
 
         return self.execution_list[execution_id]
 
+    @property
     def _dict_summary(self):
         return {
             'conditions': {
                 'termination': {
-                    str(k): str(v) for k, v in self.termination_conds.items()
+                    str(k): v._dict_summary for k, v in self.termination_conds.items()
                 },
                 'node': {
-                    n.name: str(self.condition_set[n]) for n in self.nodes if n in self.condition_set
+                    n.name: self.condition_set[n]._dict_summary for n in self.nodes if n in self.condition_set
                 }
             }
         }
-
-    def json_summary(self):
-        import json
-        return json.dumps(self._dict_summary(), sort_keys=True, indent=4, separators=(',', ': '))
 
     @property
     def clock(self):
