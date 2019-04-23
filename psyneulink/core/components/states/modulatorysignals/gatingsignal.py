@@ -439,8 +439,10 @@ class GatingSignal(ModulatorySignal):
         """
         variable = Parameter(np.array(defaultGatingAllocation),
                              aliases='allocation',
-                             getter=_output_state_variable_getter)
-        value = Parameter(np.array(defaultGatingAllocation), read_only=True, aliases=['intensity'])
+                             getter=_output_state_variable_getter,
+                             pnl_internal=True
+        )
+        value = Parameter(np.array(defaultGatingAllocation), read_only=True, aliases=['intensity'], pnl_internal=True)
         allocation_samples = Parameter(np.arange(0.1, 1.01, 0.3), modulable=True)
 
     paramClassDefaults = State_Base.paramClassDefaults.copy()

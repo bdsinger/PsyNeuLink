@@ -385,15 +385,21 @@ class GatingMechanism(ModulatoryMechanism):
 
         """
         # This must be a list, as there may be more than one (e.g., one per control_signal)
-        value = Parameter(np.array(defaultGatingAllocation), aliases='modulatory_allocation')
-        gating_allocation = Parameter(np.array(defaultGatingAllocation),
-                                      getter=_gating_allocation_getter,
-                                      setter=_gating_allocation_setter,
-                                      read_only=True)
-        control_allocation = Parameter(NotImplemented,
-                                      getter=_control_allocation_getter,
-                                      setter=_control_allocation_setter,
-                                      read_only=True)
+        value = Parameter(np.array(defaultGatingAllocation), aliases='modulatory_allocation', pnl_internal=True)
+        gating_allocation = Parameter(
+            np.array(defaultGatingAllocation),
+            getter=_gating_allocation_getter,
+            setter=_gating_allocation_setter,
+            read_only=True,
+            pnl_internal=True
+        )
+        control_allocation = Parameter(
+            NotImplemented,
+            getter=_control_allocation_getter,
+            setter=_control_allocation_setter,
+            read_only=True,
+            pnl_internal=True
+        )
     # MODIFIED 5/18/19 END
 
     @tc.typecheck

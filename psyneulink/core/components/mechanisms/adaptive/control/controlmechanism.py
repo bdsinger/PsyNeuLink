@@ -669,16 +669,22 @@ class ControlMechanism(ModulatoryMechanism):
 
         """
         # This must be a list, as there may be more than one (e.g., one per control_signal)
-        value = Parameter(np.array(defaultControlAllocation), aliases='modulatory_allocation')
-        control_allocation = Parameter(np.array(defaultControlAllocation),
-                                      getter=_control_allocation_getter,
-                                      setter=_control_allocation_setter,
-                                      read_only=True)
+        value = Parameter(np.array(defaultControlAllocation), aliases='modulatory_allocation', pnl_internal=True)
+        control_allocation = Parameter(
+            np.array(defaultControlAllocation),
+            getter=_control_allocation_getter,
+            setter=_control_allocation_setter,
+            read_only=True,
+            pnl_internal=True
+        )
 
-        gating_allocation = Parameter(NotImplemented,
-                                      getter=_gating_allocation_getter,
-                                      setter=_gating_allocation_setter,
-                                      read_only=True)
+        gating_allocation = Parameter(
+            NotImplemented,
+            getter=_gating_allocation_getter,
+            setter=_gating_allocation_setter,
+            read_only=True,
+            pnl_internal=True
+        )
     # MODIFIED 5/18/19 END
 
     @tc.typecheck

@@ -283,7 +283,7 @@ class PredictionErrorMechanism(ComparatorMechanism):
                     :type: float
 
         """
-        variable = Parameter(None, read_only=True)
+        variable = Parameter(None, read_only=True, pnl_internal=True)
         learning_rate = Parameter(0.3, modulable=True)
         function = PredictionErrorDeltaFunction
         sample = None

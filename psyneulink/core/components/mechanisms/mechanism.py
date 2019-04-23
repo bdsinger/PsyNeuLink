@@ -1342,12 +1342,12 @@ class Mechanism_Base(Mechanism):
                     :read only: True
 
         """
-        variable = Parameter(np.array([[0]]), read_only=True)
-        value = Parameter(np.array([[0]]), read_only=True)
-        previous_value = Parameter(None, read_only=True)
+        variable = Parameter(np.array([[0]]), read_only=True, pnl_internal=True)
+        value = Parameter(np.array([[0]]), read_only=True, pnl_internal=True)
+        previous_value = Parameter(None, read_only=True, pnl_internal=True)
         function = Linear
 
-        input_state_variables = Parameter(None, read_only=True, user=False, getter=_input_state_variables_getter)
+        input_state_variables = Parameter(None, read_only=True, user=False, getter=_input_state_variables_getter, pnl_internal=True)
 
     registry = MechanismRegistry
 

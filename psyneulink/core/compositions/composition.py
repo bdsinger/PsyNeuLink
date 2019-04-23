@@ -1098,8 +1098,8 @@ class Composition(Composition_Base, metaclass=ComponentsMeta):
                     :type: list
 
         """
-        results = Parameter([], loggable=False)
-        simulation_results = Parameter([], loggable=False)
+        results = Parameter([], loggable=False, pnl_internal=True)
+        simulation_results = Parameter([], loggable=False, pnl_internal=True)
 
     class _CompilationData(ParametersBase):
         ptx_execution = None

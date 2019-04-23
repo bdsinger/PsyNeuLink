@@ -878,10 +878,10 @@ class Component(object, metaclass=ComponentsMeta):
                     :type: bool
 
         """
-        variable = Parameter(np.array([0]), read_only=True)
-        value = Parameter(np.array([0]), read_only=True)
-        context = Parameter(None, user=False)
-        has_initializers = Parameter(False, setter=_has_initializers_setter)
+        variable = Parameter(np.array([0]), read_only=True, pnl_internal=True)
+        value = Parameter(np.array([0]), read_only=True, pnl_internal=True)
+        context = Parameter(None, user=False, pnl_internal=True)
+        has_initializers = Parameter(False, setter=_has_initializers_setter, pnl_internal=True)
 
         def _parse_variable(self, variable):
             return variable
@@ -1113,11 +1113,11 @@ class Component(object, metaclass=ComponentsMeta):
         # Validate the set passed in and assign to paramInstanceDefaults
         # By calling with assign_missing, this also populates any missing params with ones from paramClassDefaults
         self._instantiate_defaults(variable=default_variable,
-               request_set=param_defaults,            # requested set
-               assign_missing=True,                   # assign missing params from classPreferences to instanceDefaults
-               target_set=self.paramInstanceDefaults, # destination set to which params are being assigned
-               default_set=self.paramClassDefaults,   # source set from which missing params are assigned
-               context=context)
+            request_set=param_defaults,            # requested set
+            assign_missing=True,                   # assign missing params from classPreferences to instanceDefaults
+            target_set=self.paramInstanceDefaults, # destination set to which params are being assigned
+            default_set=self.paramClassDefaults,   # source set from which missing params are assigned
+            context=context)
 
         self._runtime_params_reset = {}
 

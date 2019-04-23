@@ -856,32 +856,37 @@ class ModulatoryMechanism(AdaptiveMechanism_Base):
 
         """
         # This must be a list, as there may be more than one (e.g., one per control_signal)
-        variable = np.array([defaultControlAllocation])
-        value = Parameter(np.array(defaultControlAllocation), aliases='modulatory_allocation')
-        control_allocation = Parameter(np.array(defaultControlAllocation),
-                                       getter=_control_allocation_getter,
-                                       setter=_control_allocation_setter,
-                                       read_only=True)
-        gating_allocation = Parameter(np.array(defaultGatingAllocation),
-                                      getter=_gating_allocation_getter,
-                                      setter=_gating_allocation_setter,
-                                      read_only=True)
-        outcome = Parameter(None, read_only=True, getter=_outcome_getter)
+        variable = Parameter(np.array([defaultControlAllocation]), pnl_internal=True)
+        value = Parameter(np.array(defaultControlAllocation), aliases='modulatory_allocation', pnl_internal=True)
+        control_allocation = Parameter(
+            np.array(defaultControlAllocation),
+            getter=_control_allocation_getter,
+            setter=_control_allocation_setter,
+            read_only=True,
+            pnl_internal=True
+        )
+        gating_allocation = Parameter(
+            np.array(defaultGatingAllocation),
+            getter=_gating_allocation_getter,
+            setter=_gating_allocation_setter,
+            read_only=True,
+            pnl_internal=True
+        )
+        outcome = Parameter(None, read_only=True, getter=_outcome_getter, pnl_internal=True)
 
         compute_reconfiguration_cost = Parameter(None, stateful=False, loggable=False)
         # reconfiguration_cost = Parameter(None, read_only=True, getter=_reconfiguration_cost_getter)
 
         combine_costs = Parameter(np.sum, stateful=False, loggable=False)
         costs = Parameter(None, read_only=True, getter=_modulatory_mechanism_costs_getter)
-        control_signal_costs = Parameter(None, read_only=True)
+        control_signal_costs = Parameter(None, read_only=True, pnl_internal=True)
 
         compute_net_outcome = Parameter(lambda outcome, cost: outcome - cost, stateful=False, loggable=False)
-        net_outcome = Parameter(None, read_only=True,
-                                getter=_net_outcome_getter)
+        net_outcome = Parameter(None, read_only=True, getter=_net_outcome_getter, pnl_internal=True)
 
-        simulation_ids = Parameter([], user=False)
+        simulation_ids = Parameter([], user=False, pnl_internal=True)
 
-        modulation = ModulationParam.MULTIPLICATIVE
+        modulation = Parameter(ModulationParam.MULTIPLICATIVE, pnl_internal=True)
 
     paramClassDefaults = Mechanism_Base.paramClassDefaults.copy()
     paramClassDefaults.update({
