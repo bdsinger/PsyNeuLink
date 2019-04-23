@@ -497,6 +497,12 @@ class Parameter(types.SimpleNamespace):
 
             :Developer Notes: Can be manually set, but will trigger a warning unless override=True
 
+        pnl_internal
+            whether the parameter is an idiosyncrasy of PsyNeuLink or it is more intrinsic to the conceptual operation
+            of the Component on which it resides
+
+            :default: False
+
         aliases
             other names by which the parameter goes (e.g. allocation is the same as variable for ControlSignal).
 
@@ -604,6 +610,7 @@ class Parameter(types.SimpleNamespace):
         stateful=True,
         modulable=False,
         read_only=False,
+        pnl_internal=False,
         aliases=None,
         user=True,
         values=None,
@@ -639,6 +646,7 @@ class Parameter(types.SimpleNamespace):
             stateful=stateful,
             modulable=modulable,
             read_only=read_only,
+            pnl_internal=pnl_internal,
             aliases=aliases,
             user=user,
             values=values,
