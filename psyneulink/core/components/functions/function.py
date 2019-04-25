@@ -600,6 +600,8 @@ class Function_Base(Function):
 
     variableClassDefault_locked = False
 
+    _model_spec_id_parameters = 'args'
+
     class Parameters(Function.Parameters):
         """
             Attributes

@@ -850,6 +850,21 @@ class Component(object, metaclass=ComponentsMeta):
     componentCategory = None
     componentType = None
 
+    # helper attributes for JSON model spec
+    _model_spec_id_parameters = 'parameters'
+
+    _model_spec_generic_type_name = NotImplemented
+    '''
+        string describing this class's generic type in universal model specification,
+        if it exists and is different than the class name
+    '''
+
+    _model_spec_class_name_is_generic = False
+    '''
+        True if the class name is the class's generic type in universal model specification,
+        False otherwise
+    '''
+
     class Parameters(ParametersBase):
         """
             The `Parameters` that are associated with all `Components`

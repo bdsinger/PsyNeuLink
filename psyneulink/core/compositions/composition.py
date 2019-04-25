@@ -1080,6 +1080,8 @@ class Composition(Composition_Base, metaclass=ComponentsMeta):
     # Composition now inherits from Component, so registry inherits name None
     componentType = 'Composition'
 
+    _model_spec_generic_type_name = 'graph'
+
     class Parameters(ParametersBase):
         """
             Attributes

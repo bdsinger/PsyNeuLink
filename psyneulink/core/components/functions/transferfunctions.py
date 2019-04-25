@@ -256,6 +256,8 @@ class Linear(TransferFunction):  # ---------------------------------------------
         kpReportOutputPref: PreferenceEntry(False, PreferenceLevel.INSTANCE),
     }
 
+    _model_spec_class_name_is_generic = True
+
     class Parameters(TransferFunction.Parameters):
         """
             Attributes
@@ -759,6 +761,8 @@ class Logistic(TransferFunction):  # -------------------------------------------
     additive_param = BIAS
 
     paramClassDefaults = Function_Base.paramClassDefaults.copy()
+
+    _model_spec_class_name_is_generic = True
 
     class Parameters(TransferFunction.Parameters):
         """
