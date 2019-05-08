@@ -94,8 +94,10 @@ CONTENTS
 import abc
 import copy
 import inspect
+import json
 import logging
 import numbers
+import re
 import time
 import types
 import warnings
@@ -107,7 +109,7 @@ from json import JSONEncoder
 import collections
 import numpy as np
 
-from psyneulink.core.globals.keywords import DISTANCE_METRICS, EXPONENTIAL, GAUSSIAN, LINEAR, MATRIX_KEYWORD_VALUES, NAME, SINUSOID, VALUE
+from psyneulink.core.globals.keywords import DISTANCE_METRICS, EXPONENTIAL, GAUSSIAN, LINEAR, MATRIX_KEYWORD_VALUES, MODEL_SPEC_ID_GENERIC, MODEL_SPEC_ID_PSYNEULINK, MODEL_SPEC_ID_RECEIVER_MECH, MODEL_SPEC_ID_SENDER_MECH, NAME, SINUSOID, VALUE
 from psyneulink.core.globals.sampleiterator import SampleIterator
 
 __all__ = [
@@ -120,10 +122,10 @@ __all__ = [
     'make_readonly_property', 'merge_param_dicts', 'Modulation', 'MODULATION_ADD', 'MODULATION_MULTIPLY',
     'MODULATION_OVERRIDE', 'multi_getattr', 'np_array_less_than_2d',
     'object_has_single_value', 'optional_parameter_spec',
-    'normpdf',
+    'normpdf', 'parse_valid_identifier',
     'parameter_spec', 'powerset', 'random_matrix', 'ReadOnlyOrderedDict', 'safe_len', 'scalar_distance', 'sinusoid',
     'tensor_power', 'TEST_CONDTION', 'type_match',
-    'underscore_to_camelCase', 'UtilitiesError', 'unproxy_weakproxy', 'PNLJSONEncoder',
+    'underscore_to_camelCase', 'UtilitiesError', 'unproxy_weakproxy', 'PNLJSONEncoder', 'generate_script_from_json',
 ]
 
 logger = logging.getLogger(__name__)
@@ -1637,3 +1639,265 @@ class PNLJSONEncoder(JSONEncoder):
                 pass
 
         return super().default(o)
+
+
+def parse_valid_identifier(orig_identifier):
+    '''
+        Returns
+        -------
+            A version of **orig_identifier** with characters replaced
+            so that it is a valid python identifier
+    '''
+    change_invalid_beginning = re.sub(r'^([^a-zA-Z_])', r'_\1', orig_identifier)
+    return re.sub(r'[^a-zA-Z0-9_]', '_', change_invalid_beginning)
+
+
+def generate_script_from_json(model_input):
+    import psyneulink
+
+    def parse_component_type(component_dict):
+        try:
+            type_str = component_dict['type'][MODEL_SPEC_ID_PSYNEULINK]
+        except KeyError:
+            type_str = component_dict['type'][MODEL_SPEC_ID_GENERIC]
+
+        try:
+            # gets the actual psyneulink type (Component, etc..) from the module
+            return getattr(psyneulink, type_str)
+        except AttributeError as e:
+            raise UtilitiesError(f'Invalid PsyNeuLink type specified for JSON object: {component_dict}') from e
+
+    def generate_component_string(
+        component_dict,
+        tab_offset=0,
+        assignment=False,
+    ):
+        component_type = parse_component_type(component_dict)
+
+        name = component_dict['name']
+        parameters = component_dict[component_type._model_spec_id_parameters][MODEL_SPEC_ID_PSYNEULINK]
+
+        # pnl objects only have one function unless specified in another way than just "function"
+        try:
+            parameters['function'] = component_dict['functions'][0]
+        except KeyError:
+            pass
+
+        assignment_str = f'{parse_valid_identifier(name)} = ' if assignment else ''
+
+        additional_arguments = []
+        constructor_arguments = inspect.signature(component_type.__init__).parameters.keys()
+
+        if 'name' in constructor_arguments:
+            additional_arguments.append(f"name='{name}'")
+
+        for arg, val in parameters.items():
+            if arg in constructor_arguments:
+                if isinstance(val, dict):
+                    val = generate_component_string(val)
+
+                # skip specifying parameters that match the class defaults
+                if val != getattr(component_type.defaults, arg):
+                    additional_arguments.append(f"{arg}={val}")
+
+        output = "{0}pnl.{1}({2})".format(
+            assignment_str,
+            component_type.__name__,
+            ', '.join(additional_arguments)
+        )
+
+        return output
+
+    def generate_scheduler_string(scheduler_id, scheduler_dict):
+        output = []
+        for node, condition in scheduler_dict['conditions']['node'].items():
+            output.append(f'{scheduler_id}.add_condition({parse_valid_identifier(node)}, {generate_condition_string(condition)})')
+
+        return '\n'.join(output)
+        # output.append(f'{comp_identifer}.{sched_attr}.termination_conds = {sched_dict["termination"]}')
+
+    def generate_condition_string(condition_dict):
+        args_str = ''
+        # parse the args into psyneulink names if they exist in
+        # psyneulink. could be troublesome if you name an object
+        # the same as a pnl name, but could just be a restriction
+        exec('import psyneulink as pnl')
+        if len(condition_dict['args']) > 0:
+            arg_str_list = []
+            for arg in condition_dict['args']:
+                pnl_name = f'pnl.{arg}'
+                try:
+                    exec(pnl_name)
+                    arg = pnl_name
+                except (AttributeError, SyntaxError):
+                    arg = str(arg)
+                arg_str_list.append(arg)
+            args_str = f", {', '.join(arg_str_list)}"
+
+        kwargs_str = ''
+        if len(condition_dict['kwargs']) > 0:
+            kwarg_str_list = []
+            for key, val in condition_dict['kwargs'].items():
+                pnl_name = f'pnl.{val}'
+                try:
+                    exec(pnl_name)
+                    val = pnl_name
+                except (AttributeError, SyntaxError):
+                    val = str(arg)
+                kwarg_str_list.append(f'{key}={val}')
+            kwargs_str = f", {', '.join(kwarg_str_list)}"
+
+        arguments_str = '{0}{1}{2}'.format(
+            condition_dict['function'] if condition_dict['function'] is not None else '',
+            args_str,
+            kwargs_str
+        )
+        if len(arguments_str) > 0 and arguments_str[0] == ',':
+            arguments_str = arguments_str[2:]
+
+        return f"pnl.{condition_dict['type']}({arguments_str})"
+
+    def generate_composition_string(composition_list):
+        output = []
+
+        # may be given multiple compositions
+        for composition_dict in composition_list:
+            comp_name = composition_dict['name']
+            comp_identifer = parse_valid_identifier(comp_name)
+
+            # clean up pnl-specific and other software-specific items
+            pnl_specific_items = dict()
+            keys_to_delete = []
+            for name, node in composition_dict['nodes'].items():
+                try:
+                    parse_component_type(node)
+                except KeyError:
+                    # node isn't a node dictionary, but a dict of dicts,
+                    # indicating a software-specific set of nodes or
+                    # a composition
+                    if name == MODEL_SPEC_ID_PSYNEULINK:
+                        pnl_specific_items = node
+
+                    if 'graphs' not in node:
+                        keys_to_delete.append(name)
+
+            for nodes_dict in pnl_specific_items:
+                for name, node in nodes_dict.items():
+                    composition_dict['nodes'][name] = node
+            for name_to_delete in keys_to_delete:
+                del composition_dict['nodes'][name_to_delete]
+
+            keys_to_delete = []
+            for name, edge in composition_dict['edges'].items():
+                try:
+                    parse_component_type(edge)
+
+                except KeyError:
+                    if name == MODEL_SPEC_ID_PSYNEULINK:
+                        pnl_specific_items = edge
+
+                    keys_to_delete.append(name)
+
+            for name, edge in pnl_specific_items.items():
+                # exclude CIM projections from/to this Composition, because they are automatically generated
+                # from/to other Compositions are inner Compositions
+                if edge[MODEL_SPEC_ID_SENDER_MECH] != comp_name and edge[MODEL_SPEC_ID_RECEIVER_MECH] != comp_name:
+                    composition_dict['edges'][name] = edge
+
+            for name_to_delete in keys_to_delete:
+                del composition_dict['edges'][name_to_delete]
+
+            # generate string for Composition itself
+            output.append(f"{comp_identifer} = pnl.{parse_component_type(composition_dict).__name__}(name='{comp_name}')\n")
+
+            mechanisms = []
+            compositions = []
+
+            for name, node in composition_dict['nodes'].items():
+                if 'graphs' in node:
+                    compositions.append(node['graphs'])
+                else:
+                    mechanisms.append(node)
+
+            for mech in mechanisms:
+                output.append(
+                    generate_component_string(
+                        component_dict=mech,
+                        assignment=True,
+                    )
+                )
+            if len(mechanisms) > 0:
+                output.append('')
+
+            # recursively generate string for inner Compositions
+            for comp in compositions:
+                output.append(
+                    generate_composition_string(
+                        composition_list=comp,
+                    )
+                )
+            if len(compositions) > 0:
+                output.append('')
+
+            # generate string to add the nodes to this Composition
+            nodes = []
+            for name in composition_dict['nodes']:
+                nodes.append(parse_valid_identifier(name))
+
+            output.append(f"{comp_identifer}.add_nodes([{', '.join(nodes)}])")
+
+            # generate string to add the projections
+            for name, projection_dict in composition_dict['edges'].items():
+                projection_type = parse_component_type(projection_dict)
+
+                # these are not actively added to a Composition like standard projections
+                if not issubclass(
+                    projection_type,
+                    (psyneulink.ControlProjection, psyneulink.AutoAssociativeProjection)
+                ):
+                    output.append(
+                        "{0}.add_projection(projection={1}, sender={2}, receiver={3})".format(
+                            comp_identifer,
+                            generate_component_string(projection_dict),
+                            parse_valid_identifier(projection_dict[MODEL_SPEC_ID_SENDER_MECH]),
+                            parse_valid_identifier(projection_dict[MODEL_SPEC_ID_RECEIVER_MECH]),
+                        )
+                    )
+
+            # add schedulers
+            try:
+                schedulers = composition_dict['parameters'][MODEL_SPEC_ID_PSYNEULINK]['schedulers']
+
+                ContextFlags = psyneulink.core.globals.context.ContextFlags
+                scheduler_attr_mappings = {
+                    str(ContextFlags.PROCESSING): 'scheduler_processing',
+                    str(ContextFlags.LEARNING): 'scheduler_learning',
+                }
+
+                for phase, sched_dict in schedulers.items():
+                    try:
+                        sched_attr = scheduler_attr_mappings[phase]
+                    except KeyError as e:
+                        raise UtilitiesError(f'Invalid scheduler phase in JSON: {phase}') from e
+
+                    output.append('')
+                    output.append(generate_scheduler_string(f'{comp_identifer}.{sched_attr}', sched_dict))
+
+            except KeyError:
+                pass
+
+        return '\n'.join(output)
+
+    # accept either json string or filename
+    try:
+        model_input = json.loads(model_input)
+    except json.decoder.JSONDecodeError:
+        model_input = open(model_input, 'r').read()
+        model_input = json.loads(model_input)
+
+    model_output = 'import psyneulink as pnl\n\n'
+
+    model_output += (generate_composition_string(model_input['graphs']))
+
+    print(model_output)
+    return model_output
