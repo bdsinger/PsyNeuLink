@@ -109,7 +109,7 @@ from json import JSONEncoder
 import collections
 import numpy as np
 
-from psyneulink.core.globals.keywords import DISTANCE_METRICS, EXPONENTIAL, GAUSSIAN, LINEAR, MATRIX_KEYWORD_VALUES, MODEL_SPEC_ID_GENERIC, MODEL_SPEC_ID_PSYNEULINK, MODEL_SPEC_ID_RECEIVER_MECH, MODEL_SPEC_ID_SENDER_MECH, NAME, SINUSOID, VALUE
+from psyneulink.core.globals.keywords import DISTANCE_METRICS, EXPONENTIAL, GAUSSIAN, LINEAR, MATRIX_KEYWORD_VALUES, MODEL_SPEC_ID_GENERIC, MODEL_SPEC_ID_PARAMETER_VALUE, MODEL_SPEC_ID_PSYNEULINK, MODEL_SPEC_ID_RECEIVER_MECH, MODEL_SPEC_ID_SENDER_MECH, NAME, SINUSOID, VALUE
 from psyneulink.core.globals.sampleiterator import SampleIterator
 
 __all__ = [
@@ -122,7 +122,7 @@ __all__ = [
     'make_readonly_property', 'merge_param_dicts', 'Modulation', 'MODULATION_ADD', 'MODULATION_MULTIPLY',
     'MODULATION_OVERRIDE', 'multi_getattr', 'np_array_less_than_2d',
     'object_has_single_value', 'optional_parameter_spec',
-    'normpdf', 'parse_valid_identifier',
+    'normpdf', 'parse_valid_identifier', 'parse_string_to_keyword_string',
     'parameter_spec', 'powerset', 'random_matrix', 'ReadOnlyOrderedDict', 'safe_len', 'scalar_distance', 'sinusoid',
     'tensor_power', 'TEST_CONDTION', 'type_match',
     'underscore_to_camelCase', 'UtilitiesError', 'unproxy_weakproxy', 'PNLJSONEncoder', 'generate_script_from_json',
@@ -1652,6 +1652,15 @@ def parse_valid_identifier(orig_identifier):
     return re.sub(r'[^a-zA-Z0-9_]', '_', change_invalid_beginning)
 
 
+def parse_string_to_keyword_string(string):
+    '''
+        Returns
+        -------
+            the psyneulink keyword string corresponding to **string** if it exists,
+            otherwise None
+    '''
+    return string.upper().replace(' ', '_')
+
 def generate_script_from_json(model_input):
     import psyneulink
 
@@ -1672,10 +1681,27 @@ def generate_script_from_json(model_input):
         tab_offset=0,
         assignment=False,
     ):
+        exec('import psyneulink as pnl')
         component_type = parse_component_type(component_dict)
 
         name = component_dict['name']
-        parameters = component_dict[component_type._model_spec_id_parameters][MODEL_SPEC_ID_PSYNEULINK]
+        parameters = {}
+
+        for param_name, val in component_dict[component_type._model_spec_id_parameters].items():
+            if param_name is MODEL_SPEC_ID_PSYNEULINK:
+                parameters.update(val)
+            # filters non-psyneulink specific parameters
+            elif isinstance(val, dict):
+                if MODEL_SPEC_ID_PARAMETER_VALUE in val:
+                    parameters[param_name] = val[MODEL_SPEC_ID_PARAMETER_VALUE]
+                else:
+                    try:
+                        parse_component_type(val)
+                        parameters[param_name] = generate_component_string(val)
+                    except (KeyError, UtilitiesError):
+                        pass
+            else:
+                parameters[param_name] = val
 
         # pnl objects only have one function unless specified in another way than just "function"
         try:
@@ -1693,17 +1719,43 @@ def generate_script_from_json(model_input):
 
         for arg, val in parameters.items():
             if arg in constructor_arguments:
+                val_is_pnl_object = False
+
                 if isinstance(val, dict):
-                    val = generate_component_string(val)
+                    # # handle parameter state spec
+                    if MODEL_SPEC_ID_PARAMETER_VALUE in val:
+                        val = val[MODEL_SPEC_ID_PARAMETER_VALUE]
+                    else:
+                        val = generate_component_string(val)
+
+                # see if val is a psyneulink object
+                try:
+                    val = eval(f'pnl.{val}')
+                    val_is_pnl_object = True
+                except (AttributeError, SyntaxError):
+                    # handle potential keyword
+                    if isinstance(val, str):
+                        keyword = parse_string_to_keyword_string(val)
+                        try:
+                            eval(f'pnl.{keyword}')
+                            val = keyword
+                            val_is_pnl_object = True
+                        except (AttributeError, SyntaxError):
+                            pass
 
                 # skip specifying parameters that match the class defaults
                 if val != getattr(component_type.defaults, arg):
+                    if val_is_pnl_object:
+                        val = f'pnl.{val}'
+
                     additional_arguments.append(f"{arg}={val}")
 
-        output = "{0}pnl.{1}({2})".format(
+        output = "{0}pnl.{1}{2}{3}{4}".format(
             assignment_str,
             component_type.__name__,
-            ', '.join(additional_arguments)
+            '(' if len(additional_arguments) > 0 else '',
+            ', '.join(additional_arguments),
+            ')' if len(additional_arguments) > 0 else '',
         )
 
         return output
